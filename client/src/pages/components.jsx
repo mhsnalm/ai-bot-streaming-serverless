@@ -169,7 +169,7 @@ return (
         <ArrowBackIosIcon sx={{ color: grey[100] }}/>
       </IconButton>
       <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-          AI Assistant
+          AI Bot
       </Typography>
       <IconButton
             size="small"

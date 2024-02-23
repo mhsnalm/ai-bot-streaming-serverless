@@ -1,6 +1,7 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: MIT-0
 import React, { useState, useRef, useEffect } from "react";
+import { v4 as uuidv4 } from 'uuid';
 import ReactMarkdown from 'react-markdown';
 import {
   TopNavHeader,
@@ -35,8 +36,6 @@ import { API_socket } from "../commons/apigw";
 
 const params_local_storage_key = "chatbot_params_local_storage_key";
 
-const MAX_CONVERSATIONS = 4;
-
 function generateUniqueId() {
   const timestamp = Date.now();
   const randomNumber = Math.random();
@@ -46,6 +45,7 @@ function generateUniqueId() {
 }
 
 const BOTNAME = "AI";
+const conversation_id = uuidv4();
 
 function stringToColor(string) {
   let hash = 0;
@@ -150,6 +150,7 @@ const ChatBox = ({ msgItems, loading }) => {
       scrollRef.current.scrollIntoView({ behaviour: "smooth" });
     }
   }, [msgItems.length]);
+  
   const items = msgItems.map((msg) => (
     <MsgItem key={generateUniqueId()} who={msg.who} text={msg.text} />
   ));
@@ -180,7 +181,7 @@ const InputSection = ({
   const username = local_stored_crediential.username;
   // const [conversations,setConversations] = useState([]);
   const modelParams = useModelParams();
-  // console.log(modelParams);
+  console.log('Model Parameters: ', modelParams);
   // const authheader = useAuthorizedHeader();
   const formik = useFormik({
     initialValues: {
@@ -199,22 +200,22 @@ const InputSection = ({
       //save conversations
       // setConversations((prev)=>[...prev,values.prompt]);
       // const prompt = conversations.join(" ")+"\n"+values.prompt;
-      setConversations((prev) => [
-        ...prev,
-        { role: "user", content: values.prompt },
-      ]);
-      const messages = [
-        ...conversations,
-        { role: "user", content: values.prompt },
-      ];
+      // setConversations((prev) => [
+      //   ...prev,
+      //   { role: "user", content: values.prompt },
+      // ]);
+      // const messages = [
+      //   ...conversations,
+      //   { role: "user", content: values.prompt },
+      // ];
 
-      console.log('Sending Messages: ', messages);
+      // console.log('Sending Messages: ', messages);
 
       formik.resetForm();
       setLoading(true);
       sendMessage({
         action: "sendprompt",
-        payload: { msgid: respid, messages: messages, params: modelParams },
+        payload: { conversation_id: conversation_id, user: username, message: values.prompt, params: modelParams },
       });
     },
   });
@@ -308,30 +309,14 @@ const ChatPage = () => {
       return
     }
 
-    if (resp.msgid === 'build_idx'){
-      setOnMessageBuildFlag(true);
-    }
-
-    if (resp.role && resp.msgid !== 'build_idx')
-      setConversations((prev) => [
-        ...prev,
-        { role: resp.role, content: resp.text.content },
-      ]);
-
-    if (conversations.length > MAX_CONVERSATIONS) {
-      setConversations((prev) =>
-        prev.slice(conversations.length - MAX_CONVERSATIONS)
-      );
-    }
-
     setLoading(false);
     console.log("Response Message: ",resp.text.content)
     setmsgItems((prev) => [
       ...prev,
-      { id: resp.msgid, who: BOTNAME, text: resp.text.content },
+      { id: resp.conversation_id, who: BOTNAME, text: resp.text.content },
     ]);
     
-    console.log(conversations);
+    // console.log(conversations);
   };
 
   // setup websocket
