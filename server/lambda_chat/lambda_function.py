@@ -1,38 +1,62 @@
 import json
 import os
+import boto3
+from s3kv import S3KeyValueStore
 from openai import OpenAI
 
 from botocore.exceptions import NoCredentialsError
-import boto3
 
 openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+system_prompt = f""" You are a helpful assistant """
+
+def system_message():
+    messages = [
+            {"role": "system", "content": system_prompt}
+        ]
+        
+    return messages
 
 def lambda_handler(event, context):
+    
+    bucket_name = os.environ.get("CONVERSATION_BUCKET")
+    kvstore = S3KeyValueStore(bucket_name)
+    
     body = json.loads(event['Records'][0]['Sns']['Message'])
-    print("Complete Event Dump")
+    
+    print("Complete Event Dump Below:")
     print(event)
     
-    # print("Message Body Dump")
-    # print(body)
     
     request_context = body['requestContext']
     connection_id = request_context['connectionId']
 
-    prompt = 'You are a helpful assistant who is professional and courteous. Your responses are formatted in markdown.' #body['payload']['prompt']
-    messages = body['payload']['messages']
+    user = body['payload']['user']
+    
     params = body['payload']['params']
-    msgid = body['payload']['msgid']
     
-    print(prompt, messages, params, connection_id, msgid)
+    conversation_id = body['payload']['conversation_id']
+    message = body['payload']['message']
     
-    # Send message to WebSocket
+    # check conversation history
+    prev_conversation = kvstore.get_value(user, conversation_id)
+    if (prev_conversation):
+        messages = prev_conversation
+        messages.append({"role": "user", "content": message})
+    else:
+        messages = system_message()
+        messages.append({"role": "user", "content": message})
+        
+    print(message, user, params, connection_id, conversation_id)
+    
+    # initialize WebSocket
     ws_client = boto3.client('apigatewaymanagementapi', 
                           endpoint_url=f"https://{request_context['domainName']}/{request_context['stage']}",
                           region_name=os.environ['AWS_REGION'])
     
     llm_response = None
-    chat_response = None
+    chat_response_chunk = None
+    chat_response = ''
     
     print("Messages: "+str(messages))
 
@@ -46,11 +70,13 @@ def lambda_handler(event, context):
         for chunk in llm_response:
             if chunk.choices[0].delta.content!=None:
                 print('response:', chunk.choices[0].delta.content)
-                chat_response = {'content': chunk.choices[0].delta.content} 
-                ws_client.post_to_connection(ConnectionId=connection_id, Data=json.dumps({'msgid': msgid, 'role': 'assistant', 'text': chat_response}))
-        ws_client.post_to_connection(ConnectionId=connection_id, Data=json.dumps({'msgid': msgid, 'role': 'assistant', 'text': '[DONE]'}))
+                chat_response_chunk = {'content': chunk.choices[0].delta.content} 
+                chat_response = chat_response+chunk.choices[0].delta.content
+                ws_client.post_to_connection(ConnectionId=connection_id, Data=json.dumps({'conversation_id': conversation_id, 'role': 'assistant', 'text': chat_response_chunk}))
+        ws_client.post_to_connection(ConnectionId=connection_id, Data=json.dumps({'conversation_id': conversation_id, 'role': 'assistant', 'text': '[DONE]'}))
+        messages.append({"role": "assistant", "content": chat_response})
+        kvstore.put_value(user, conversation_id, messages)
                                             
-        # chat_response = {'content': llm_response.choices[0].message.content} 
     except Exception as error:
         print(json.dumps({'error': str(error)}))
         chat_response = {'content': str(error) + '|' + str(error)}
@@ -59,21 +85,6 @@ def lambda_handler(event, context):
                     'body': json.dumps(chat_response)
                 }
     
-    # print('response:', chat_response)
-    
-    # input_data = {
-    #     'ConnectionId': connection_id,
-    #     'Data': json.dumps({'msgid': msgid, 'text': chat_response})
-    # }
-    
-    # try:
-    #     ws_client.post_to_connection(ConnectionId=input_data['ConnectionId'], Data=input_data['Data'])
-    # except NoCredentialsError:
-    #     print('Credentials not available')
-    #     return {
-    #         'statusCode': 500,
-    #         'body': json.dumps({'error': 'Credentials not available'})
-    #     }
 
     return {
         'statusCode': 200,
