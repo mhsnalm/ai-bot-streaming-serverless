@@ -153,6 +153,7 @@ const ChatBox = ({ msgItems, loading }) => {
       scrollRef.current.scrollIntoView({ behaviour: "smooth" });
     }
   }, [msgItems.length]);
+  
   const items = msgItems.map((msg) => (
     <MsgItem key={generateUniqueId()} who={msg.who} text={msg.text} />
   ));

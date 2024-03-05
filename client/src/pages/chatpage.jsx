@@ -89,7 +89,7 @@ const MsgItem = ({ who, text }) => {
       </Stack>
     </ListItem>
   ) : (
-    <span>{text}</span>
+        <ReactMarkdown children={text} />
   );
 };
 
@@ -159,11 +159,12 @@ const ChatBox = ({ msgItems, loading }) => {
     <List
       sx={{
         position: "relative",
-        overflow: "auto",
+        overflow: "auto"
       }}
     >
-      {/* <MsgItem id={generateUniqueId()} who="AI" text ={"Welcome! Can I help you? 我还会中文以及其他999种语言"}/> */}
+      
       {items}
+
       {loading ? <MsgItem who={BOTNAME} text={loadingtext} /> : <div />}
       <ListItem ref={scrollRef} />
     </List>
@@ -181,7 +182,9 @@ const InputSection = ({
   const username = local_stored_crediential.username;
   // const [conversations,setConversations] = useState([]);
   const modelParams = useModelParams();
-  console.log('Model Parameters: ', modelParams);
+  
+  //console.log('Model Parameters: ', modelParams);
+  
   // const authheader = useAuthorizedHeader();
   const formik = useFormik({
     initialValues: {
@@ -197,19 +200,6 @@ const InputSection = ({
         { id: respid, who: username, text: values.prompt },
       ]);
 
-      //save conversations
-      // setConversations((prev)=>[...prev,values.prompt]);
-      // const prompt = conversations.join(" ")+"\n"+values.prompt;
-      // setConversations((prev) => [
-      //   ...prev,
-      //   { role: "user", content: values.prompt },
-      // ]);
-      // const messages = [
-      //   ...conversations,
-      //   { role: "user", content: values.prompt },
-      // ];
-
-      // console.log('Sending Messages: ', messages);
 
       formik.resetForm();
       setLoading(true);
@@ -287,6 +277,7 @@ const ChatPage = () => {
     params_local_storage_key,
     null
   );
+  const [streamMsg, setStreamMsg] = useState('');
   const [msgItems, setmsgItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modelParams, setModelParams] = useState(
@@ -304,17 +295,42 @@ const ChatPage = () => {
   const onMessageCallback = ({ data }) => {
     //save conversations
     const resp = JSON.parse(data);
-    console.log(resp);
-    if (resp.text.content ==='' || resp.text.content ===undefined ){
-      return
+    //console.log(resp);
+    if (resp.text.content === '' || resp.text.content === undefined) {
+      return;
     }
 
     setLoading(false);
-    console.log("Response Message: ",resp.text.content)
-    setmsgItems((prev) => [
-      ...prev,
-      { id: resp.conversation_id, who: BOTNAME, text: resp.text.content },
-    ]);
+    console.log("Response Message: ", resp.text.content);
+
+    if (resp.text?.content === '__START__') {
+      setStreamMsg('');
+      setmsgItems(prev => [
+        ...prev,
+        { id: generateUniqueId(), who: BOTNAME, text: '' },
+      ]);
+      return;
+    }
+
+    if (resp.text?.content !== '__END__') {
+      setStreamMsg(prev => prev + resp.text.content);
+      setmsgItems(prev => {
+        const updatedItems = [...prev];
+        const lastItemIndex = updatedItems.length - 1;
+        updatedItems[lastItemIndex] = {
+          ...updatedItems[lastItemIndex],
+          text: streamMsg
+        };
+        return updatedItems;
+      });
+    }
+    
+    
+    
+    // setmsgItems((prev) => [
+    //   ...prev,
+    //   { id: resp.conversation_id, who: BOTNAME, text: resp.text.content },
+    // ]);
     
     // console.log(conversations);
   };
