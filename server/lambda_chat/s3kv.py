@@ -19,8 +19,8 @@ class S3KeyValueStore:
             raise
 
     def put_value(self, directory, key, value):
-        print("PUT_VALUE:")
-        print(directory, key)
+        #print("PUT_VALUE:")
+        #print(directory, key)
         object_key = f"{directory}/{key}"
 
         # Check if the object already exists
@@ -32,8 +32,8 @@ class S3KeyValueStore:
         self.s3.put_object(Bucket=self.bucket_name, Key=object_key, Body=value_bytes)
 
     def get_value(self, directory, key):
-        print("GET_VALUE:")
-        print(directory, key)
+        #print("GET_VALUE:")
+        #print(directory, key)
         object_key = f"{directory}/{key}"
 
         # Check if the object exists
